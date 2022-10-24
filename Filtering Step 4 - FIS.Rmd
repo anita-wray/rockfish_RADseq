@@ -1,0 +1,102 @@
+---
+title: "Filtering Step 4 - Plot Fis Values"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+### Purpose of script: 
+
+#### This script takes as input data in a vcf file. It subsequently allows the user to calculate distributions of FIS, and visualize these outputs.
+
+```{r setup, include=FALSE}
+# Load required packages
+library(vcfR)
+library(tidyverse)
+library(hierfstat)
+library(adegenet)
+library(plotly)
+library(poppr)
+library(dplyr)
+```
+
+```{r black, echo=FALSE, warning=FALSE}
+setwd('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black')
+# specify file name of the vcf input file:
+file_name <- "black_final.recode.vcf"
+
+######################################################################################
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR(file_name)
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+
+# Create a vector of population names by inputting a file
+namevec <- read.delim('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/black_popmap.txt')
+pop_vec <- namevec$Population
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+######################################################################################
+# Do the analyses - FIS
+#### PART 1: calculating distribution of FIS in each sampling location
+#Calculate a suite of basic population genetics metrics in your dataset
+my_stats <- basic.stats(my_genind)
+
+# Save FIS calculations as a dataframe
+FIS_df <- as.data.frame(my_stats$Fis)
+write.csv(FIS_df, "black_FIS.csv", row.names=FALSE, quote=FALSE) 
+
+#To that dataframe, add a column with the locus names
+# use tidyr library to change the format of the dataframe from wide to long 
+# so you can plot the data easily with ggplot2
+FIS_df$Locus <- my_loci 
+
+# Use pivot_longer function to make this "wide" table into a tidy table
+number_pops <- length(unique(pop_vec))
+
+final_df <- pivot_longer(FIS_df, 
+                     cols = 1:number_pops, 
+                     names_to = "Population", 
+                     values_to = "FIS" )
+
+######################################################################################
+#### PART 2: Plotting distribution of FIS in each sampling location
+
+
+plot1black <- ggplot(data = final_df, aes(FIS, fill = Population)) +
+  geom_histogram(binwidth = 0.05) +
+  facet_wrap(~Population) +
+   theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill=NA, color=NA)) +
+  xlab(expression(italic(F[IS]))) +
+  ylab("Number of loci") +
+  xlim(-1,1.1) +
+  geom_hline(yintercept = 0, color = "white") +
+  theme_classic() +
+  labs(title= 'Black')
+
+plot1black
+
+my_genind
+
+private_alleles(my_genind) %>% apply(MARGIN = 1, FUN = sum)
+```
+
+
