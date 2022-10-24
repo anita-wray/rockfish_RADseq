@@ -1,0 +1,153 @@
+---
+title: "Filtering Step 2 - MAF"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+#  This script will calculate the minor allele frequency (MAF) for every SNP, then filter 
+#  your dataset to only include one SNP per RADtag with the highest MAF.
+##  Adapted from Carolyn Tarpey
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = 'C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black')
+library(tidyverse)
+library(vcfR)
+library(adegenet)
+library(factoextra)
+library(plotly)
+library(stringr)
+library(dplyr)
+library(gdata)
+library(graph4lg)
+library(stringi)
+```
+
+```{r}
+#Read in VCF file and convert to Genepop file
+my_vcf <-  read.vcfR("black_FIL-3.recode.vcf")
+my_genind <- vcfR2genind(my_vcf, return.alleles = TRUE)
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/black_popmap.txt")
+pop(my_genind) <- extra_data$Population
+genind_to_genepop(x = my_genind, output = './genepop.txt')
+```
+
+##  Important: using a text editor, remove the header and 'pop' rows in your genepop file, 
+##  and save as species_genepop_noheader.txt
+
+```{r}
+#load genepop files
+all_newGenos <- read.table('black_genepop_noheader.txt', colClasses = "factor", 
+                           sep = ' ', header = T)
+all_newGenos[1:5, 1:5]
+dim(all_newGenos)
+
+
+#get minor allele frequency for loci- want to keep SNP with highest MAF at each tag
+
+calculateMAF <- function(genotypes) {
+  genotypeList <- sort(unique(genotypes))
+  genotypeList <- genotypeList[genotypeList !=  "0000"]
+  allelesList1 <- substr(genotypeList, 1, 2)
+  allelesList2 <- substr(genotypeList, 3, 4)
+  allelesList <- unique(c(allelesList1, allelesList2))
+  allele1Counts <- sum(str_count(genotypes, allelesList[1]))
+  allele2Counts <- sum(str_count(genotypes, allelesList[2]))
+  if (length(allelesList) == 1) {
+    MAF = 0
+  }else if (allele1Counts >= allele2Counts) {
+    MAF <- allele2Counts/(allele1Counts + allele2Counts)
+  }else{
+    MAF <- allele1Counts/(allele1Counts + allele2Counts)
+  }
+  return(MAF)
+}
+
+
+allGenos_oneSNP <- apply(all_newGenos, 2, calculateMAF)
+head(allGenos_oneSNP)
+
+
+#put the results in a dataframe
+allGenos_oneSNP_temp <- data.frame(value = allGenos_oneSNP, row.names = names(all_newGenos))
+colnames(allGenos_oneSNP_temp) <- c("MAF")
+head(allGenos_oneSNP_temp)
+
+#concatenate the locus names to the results and remove trailing characters 
+allLoci <- colnames(all_newGenos)
+length(allLoci)
+newLoci <- stri_sub(allLoci,2)
+newloci2 <- substr(newLoci,1,nchar(newLoci)-2)
+allLoci <- newloci2
+length(allLoci)
+allGenos_oneSNP_temp$Locus <- allLoci
+head(allGenos_oneSNP_temp)
+
+#split the tags and snp positions
+allGenos_oneSNP_temp_tags <- data.frame(str_split_fixed(allGenos_oneSNP_temp$Locus, pattern = '\\.', 2))
+colnames(allGenos_oneSNP_temp_tags) <- c("Tag", "SNP")
+head(allGenos_oneSNP_temp_tags)
+allGenos_oneSNP_temp$Tag <- allGenos_oneSNP_temp_tags$Tag
+allGenos_oneSNP_temp$SNP <- allGenos_oneSNP_temp_tags$SNP
+head(allGenos_oneSNP_temp)
+
+
+write.table(allGenos_oneSNP_temp, "allGenos_oneSNP_temp.txt", quote = FALSE, row.names = FALSE)
+
+#Retain the SNP with the highest MAF per tag
+# This one gives an output with the correct number of unique tags,  and spot checked in excel
+oneMAF <- allGenos_oneSNP_temp %>% group_by(Tag) %>% slice(which.max(MAF))
+head(oneMAF)   
+write.table(oneMAF, "oneMAF.txt", quote = FALSE, row.names = FALSE)
+oneMAF <- as.data.frame(oneMAF)
+head(oneMAF)
+dim(oneMAF)
+
+############# Write a txt file with the list of loci- use as whitelist or subset genepop file
+#format dataset to remove X from locus names
+oneMAF_loci <- oneMAF$Locus
+head(oneMAF_loci)
+
+outputFile <- file("oneSNP_subsetgenepop.txt",  "wb")
+write.table(oneMAF_loci, outputFile, quote = FALSE, row.names = FALSE, col.names = FALSE, eol = "\n")
+close(outputFile)
+
+#use as whitelist in Stacks: 
+
+oneMAF_loci_whitelist <- data.frame(str_split_fixed(oneMAF_loci, "\\.", 2))
+
+outputFile <- file("oneSNP_whitelist.txt",  "wb")
+write.table(oneMAF_loci_whitelist[, 1], outputFile, quote = FALSE, row.names = FALSE, col.names = FALSE, eol = "\n")
+close(outputFile)
+
+```
+
+
+```{r transform whitelist into vcftools whitelist}
+
+#Load in VCF file and get the names of loci included in file
+vcf <- read.vcfR('black_FIL-3.recode.vcf')
+head(getFIX(vcf))
+table <- data.frame(getFIX(vcf))
+whitelist <- read.table('oneSNP_subsetgenepop.txt')
+whitelist$V2 <- str_sub(whitelist$V1, end = -2)
+
+#Do a bit of data editing to get the labels the same
+table$ID <- gsub('.{2}$', '', table$ID)
+table$ID <- gsub(':', '.', table$ID)
+
+#Double check the data type for the two columns
+class(whitelist$V2)
+class(table$ID)
+
+#Output names of loci within the whitelist
+output <- table[which(table$ID %in% whitelist$V2),1:2]
+nrow(output)
+write.table(output, file = 'whitelistforvcf.txt', sep = "\t",
+            col.names = FALSE, row.names = FALSE, quote = F)
+```
+
+```{bash whitelist filter vcf file}
+cd /mnt/c/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black
+vcftools --vcf black_FIL-3.recode.vcf --out black_oneSNP --recode --recode-INFO-all --positions whitelistforvcf.txt
+```
