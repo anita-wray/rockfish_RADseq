@@ -1,0 +1,177 @@
+---
+title: "Filtering Step 5 - Fst, STRUCTURE and PCA"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = 'C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black')
+
+library(tidyverse)
+library(vcfR)
+library(adegenet)
+library(factoextra)
+library(plotly)
+library(forcats)
+library(ggthemes)
+library(patchwork)
+library(hierfstat)
+library(viridis)
+cols <- c("NPS" = "#e66101", "SPS" = "#fdb863", "WC" = "#b2abd2", 'BC' = "#5e3c99")
+
+```
+
+```{r PCA Plot, warning=FALSE, include=FALSE}
+
+# File to be used
+my_vcf <-  read.vcfR("black_nooutliers.recode.vcf")
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("black_popmap_nooutliers.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+
+#Plot with pointslabeled
+pca_black <- ggplot(data = PCA_df, aes(x = Axis1, y = Axis2, color = Population)) +
+  geom_point(size = 2.5, alpha = 0.6) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  ggtitle('Black') + theme_minimal() +
+  geom_text(aes(label=Sample), nudge_y = 0.1)
+  
+ggplotly(pca_black)
+
+#Plot without points labeled
+pca_black_unlabeled <- ggplot(data = PCA_df, aes(x = Axis1, y = Axis2, fill = Population)) +
+  geom_point(size = 3.5, shape = 21) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  ggtitle('Black') + theme_minimal() +
+  scale_color_manual(values  = cols)+
+  scale_fill_manual(values = cols)
+  
+ggplotly(pca_black_unlabeled)
+```
+
+```{r Fst Plot and CI,  message=FALSE, warning=FALSE, include=FALSE}
+######################################################################################
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR('black_nooutliers.recode.vcf')
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+
+# Create a vector of population names by inputting a file
+namevec <- read.delim('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/black_popmap_nooutliers.txt')
+pop_vec <- namevec$Population
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+black_Fst <- genet.dist(my_genind, diploid = TRUE, method = "WC84") %>% round(digits = 3)
+black_Fst
+
+
+# Desired order of labels
+lab_order = c("NPS","SPS","WC")
+
+# Change order of rows and cols
+fst.mat = as.matrix(black_Fst)
+fst.mat1 = fst.mat[lab_order, ]
+fst.mat2 = fst.mat1[, lab_order]
+
+# Create a data.frame
+ind = which(upper.tri(fst.mat2), arr.ind = TRUE)
+fst.df = data.frame(Site1 = dimnames(fst.mat2)[[2]][ind[,2]],
+                    Site2 = dimnames(fst.mat2)[[1]][ind[,1]],
+                    Fst = fst.mat2[ ind ])
+
+# Keep the order of the levels in the data.frame for plotting 
+fst.df$Site1 = factor(fst.df$Site1, levels = unique(fst.df$Site1))
+fst.df$Site2 = factor(fst.df$Site2, levels = unique(fst.df$Site2))
+
+# Convert minus values to zero
+fst.df$Fst[fst.df$Fst < 0] = 0
+
+# Fst italic label
+fst.label = expression(italic("F")[ST])
+
+# Extract middle Fst value for gradient argument
+mid = max(fst.df$Fst) / 2
+
+# Plot heatmap
+plot1black <- ggplot(data = fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(aes(label = Fst), color="black", size = 5)+
+  scale_fill_gradient2(low = "blue", mid = "pink", high = "red", midpoint = 0.09, name = fst.label, limits = c(0, max(fst.df$Fst)), breaks = c(0, 0.05, 0.10, 0.15))+
+  scale_x_discrete(expand = c(0,0))+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  ggtitle("black")+
+  theme(axis.text = element_text(colour = "black", size = 10, face = "bold"),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+  )
+
+output_black <- boot.ppfst(dat= my_genind, nboot = 1000)
+
+```
+
+```{r STRUCTURE Plot, warning=FALSE, include=FALSE}
+data_black <- read.csv("k2_forplotting.csv")
+black_structure_per_sample <- ggplot(data_black, aes(x=reorder(Sample.ID, PopulationNumber), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+black_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+black_structure_per_location <-
+  ggplot(data_black, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  ) +
+  scale_fill_gdocs(guide = 'none')+
+  scale_fill_brewer(palette="Paired")
+
+black_structure_per_location
+```
