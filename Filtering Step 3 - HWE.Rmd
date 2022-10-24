@@ -1,0 +1,218 @@
+---
+title: "Filtering Step 3 - HWE"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+knitr::opts_knit$set(root.dir = 'C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black')
+# Load libraries
+library(tidyverse)
+library(pegas)
+library(vcfR)
+library(adegenet)
+library(qvalue)
+library(gplots)
+
+popnames <- c('NPS', 'SPS','WC')
+```
+
+```{r HWE function}
+multipleHWE <- function(popnames = popnames, vcf = vcf, POPID_FILE = popidfile, BASE_DIR = basedir){
+  setwd(BASE_DIR)
+    # Read in the vcf file as a genind object using vcfR
+    my_vcf <-  read.vcfR(vcf)
+    
+    # Transform the data into a genind object
+    my_genind <- vcfR2genind(my_vcf)
+    
+    # Read in the metadata file
+    popid_df <- read.delim(POPID_FILE)
+  
+    OUTFILEp2 <- ".recode.hweoutput.txt"
+  
+    for (i in popnames){
+      TESTPOP <- i
+      OUT_FILE <- paste(i,OUTFILEp2, sep='')
+      print(OUT_FILE)
+    
+     ######################################################################################
+      # Do some data processing, in preparation for the analyses
+      # Save a vector of unique locus names
+      my_loci <- unique(my_genind$loc.fac)
+      length(my_loci) #check the number of loci
+    
+      # Create a vector of individual names
+      name_vec <- as.vector(popid_df$Sample)
+    
+      # Create a vector of population names
+      pop_vec <- as.vector(popid_df$Population)
+    
+      # Assign those population names to your genind object
+      pop(my_genind) <- pop_vec
+      my_genind@pop #check
+      indNames(my_genind)
+    
+      test_genind <- my_genind[pop = TESTPOP]
+      ######################################################################################
+      # Use the seppop function from adegenet to separate the genind file into discrete pops,
+      # then calculate the exact test of HWE using 1,000 Monte Carlo permutations using the hw.test function 
+      # from the package pegas. 
+    
+      hwe.pop <- seppop(test_genind) %>% 
+        lapply(hw.test, B = 1000)
+    
+     ######################################################################################
+      # Process the results
+    
+      # hwe.pop is a list of matrices
+      # use do.call function to do r bind to the list of 
+      # matrices and turn them into a dataframe
+    
+      hwe_df <- as.data.frame(do.call(rbind, hwe.pop))
+      hwe_df$locus <- row.names(hwe_df)
+      head(hwe_df)
+    
+      # create a temporary vector with the population names
+      temp_vec <- (names(hwe.pop))
+      temp_vec
+    
+      # run a little function to repeat the population names by the number of loci
+      nloci <- nlevels(my_genind$loc.fac)
+    
+      name_func <- function(x) {
+        m <- c()
+        for(i in x) {
+          y <- (rep(i,nloci))
+          m <- c(m, y)
+        }
+        return(m)
+      } 
+    
+    
+      name_vec <- name_func(temp_vec)
+      name_vec
+    
+      ### append those population names to the dataframe
+      hwe_df$Population <- name_vec
+      head(hwe_df)
+    
+      # pegas has added a funny .pop number after each locus name, to designate that that locus was being evaluated in a specific population.
+      # remove this delimiter (it screws up downstream analyses)
+      hwe_df$locus_name <- gsub("\\..*","", hwe_df$locus)
+    
+    
+      # save results to file
+      write.table(hwe_df, file = OUT_FILE, append = FALSE, quote = FALSE, sep = "\t",
+                eol = "\n", na = "NA", dec = ".", row.names = FALSE)
+    }
+}
+```
+
+```{r run function for Black Rockfish}
+multipleHWE(popnames = popnames, 
+            vcf = 'black_oneSNP.recode.vcf',
+            POPID_FILE = "C:/Users/Anita Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/black_popmap.txt",
+            BASE_DIR = "C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/black")
+```
+
+```{r Fishers Combination of Probability, include=FALSE}
+NPS_FILE <- read.delim("NPS.recode.hweoutput.txt")
+SPS_FILE <-  read.delim("SPS.recode.hweoutput.txt")
+WC_FILE <-  read.delim("WC.recode.hweoutput.txt")
+combined_black <- rbind(NPS_FILE, SPS_FILE, WC_FILE)
+
+NLOCI <- 20431 # Specify the total number of loci in your data set
+
+# Read in your data
+HWE_tidy <- combined_black
+
+print('How many p-values contain NAs')
+sum(is.na(HWE_tidy)) # Check to see whether some p-values contain NAs
+
+# Remove the rows of df that contain NAs, so that qvalue can run
+mydata <- HWE_tidy %>%
+  na.omit()
+
+newcsv <- mydata %>%
+  group_by(locus_name) %>%
+  summarise(
+    Size_Sum = sum(chi.2)
+  )
+
+newcsv$p.value <- pchisq(newcsv$Size_Sum,3, lower.tail = F)
+
+
+# Estimate the q-values for a given set of p-values. 
+# The q-value of a test measures the proportion of false positives incurred (called the false discovery rate)
+# when that particular test is called significant.
+# usage : qvalue(vector of p-values, fdr.level = 0.05)
+
+my_qobj <- qvalue(newcsv$p.value, fdr.level = 0.05)
+plot(my_qobj)
+hist(my_qobj)
+
+# The program qvalue outputs the data in a pretty obscure format.
+# Luckily, it appears that the qvalue order matches the order of loci in the original file.
+# Thus, I can use dplyr to append the qvalue to the data frame.
+
+newcsv$qvalues <- my_qobj$qvalues
+newcsv$significant <- my_qobj$significant
+newcsv$pvalues <- my_qobj$pvalues
+
+hist(newcsv$qvalues)
+
+# count if there are any populations that have many loci out of HWE
+
+pop_sign_black <- newcsv %>%
+  filter(qvalues < 0.05) %>%
+  tally() %>%
+  mutate(proportion_sig = n/NLOCI)
+
+
+# filter the df so that you only retain loci with significant q values
+mydata_sign_black <- filter(newcsv, qvalues > 0.05)
+write.table(mydata_sign_black, file = 'black_hwe_whitelist.txt', append = FALSE, quote = FALSE, sep = "\t",
+                eol = "\n", na = "NA", dec = ".", row.names = FALSE)
+
+plot1black <- ggplot(data = newcsv, aes(qvalues)) +
+  geom_histogram(binwidth = 0.05) +
+   theme(panel.grid = element_blank(),
+        axis.text.x = element_text(angle = 90, hjust = 1),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        strip.background = element_rect(fill=NA, color=NA)) +
+  xlab("q-value") +
+  ylab("Number of loci") +
+  xlim(0,1.1) +
+  geom_hline(yintercept = 0, color = "white") +
+  theme_classic() +
+  labs(title= 'Black')
+
+plot1black
+```
+
+```{r transform whitelist into vcftools whitelist}
+vcf <- read.vcfR('black_oneSNP.recode.vcf')
+head(getFIX(vcf))
+table <- data.frame(getFIX(vcf))
+whitelist <- read.table('black_hwe_whitelist.txt', header = T)
+whitelist$locusID <- str_sub(whitelist$locus_name, end = -3)
+whitelist$locusID <- gsub(':','.', whitelist$locusID)
+
+table$ID <- gsub('.{2}$', '', table$ID)
+table$ID <- gsub(':', '.', table$ID)
+
+output <- table[which(table$ID %in% whitelist$locusID),1:2]
+nrow(output)
+write.table(output, file = 'whitelistforvcf_final.txt', sep = "\t",
+            col.names = FALSE, row.names = FALSE, quote = F)
+```
+
+```{bash whitelist filter vcf file}
+cd /mnt/c/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/black
+vcftools --vcf black_oneSNP.recode.vcf --out black_final --recode --recode-INFO-all --positions whitelistforvcf_final.txt
+```
+
