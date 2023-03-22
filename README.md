@@ -9,3 +9,5 @@ Objective of Project(s):
 
 ## Navigation of Repository
 All scripts are in folders according to what program I ran them on. All post-populations SNP filtering and analyses are in the R folder.
+
+Raw sequences will be uploaded to the SRA and final results will be published soon.
