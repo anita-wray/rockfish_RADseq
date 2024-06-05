@@ -6,6 +6,9 @@ output: html_document
 ---
 
 ```{r setup, include=FALSE}
+
+### This script runs a handful of mapping options, of which I chose one to publish###
+
 knitr::opts_chunk$set(echo = TRUE)
 library("tidyverse")
 library("sf")
