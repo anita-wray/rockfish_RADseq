@@ -1,0 +1,1241 @@
+---
+title: "Copper Quillback Brown Final PCAs & STRUCTURE"
+author: "Anita Wray"
+date: "`r Sys.Date()`"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE) 
+
+ipak <- function(pkg){
+new.pkg <- pkg[!(pkg %in% installed.packages()[, "Package"])]
+if (length(new.pkg)) 
+    install.packages(new.pkg, dependencies = TRUE)
+sapply(pkg, require, character.only = TRUE)
+}
+
+# usage
+packages <- c('tidyverse', 'vcfR', 'adegenet', 'factoextra', 'plotly', 'forcats', 
+              'ggthemes', 'patchwork', 'hierfstat', 'viridis', 'wesanderson', 
+              'PNWColors', 'scatterpie', 'sf', 'ggspatial', 'rnaturalearth', 
+              'diveRsity', 'maps', 'scatterpie', 'ggpmisc', 'scales', 'ggpubr')
+ipak(packages)
+theme_set(theme_bw())
+pal <- wes_palette('GrandBudapest1', n = 3)
+cols_combined <- c('Copper' = pal[1], 'Quillback' = pal[2], 'Brown' = pal[3])
+
+pal_ks <- wes_palette("Cavalcanti1", n = 3)
+cols_k2 <- c('2' = pal_ks[2], '1' = pal_ks[1])
+cols_k3 <- c('1' = pal_ks[2], '3' = pal_ks[1], '2' = pal_ks[3])
+cols <- c("NPS" = '#f2d7ee', "SPS" = '#a5668b', "WC" = '#502688', 'BC' = '#0e103d')
+```
+
+```{r pca_for_paper, include=FALSE}
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/copperquillbackbrown_forpaper.recode.vcf", verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/copperquillbackbrown_popmap.txt")
+
+name_vec <-indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+
+
+pca_for_paper <- ggplot(data = PCA_df) +
+  geom_point(size = 3.5, shape = 21, aes(x = Axis1, y = Axis2, fill = Population)) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  theme_minimal()  +
+  scale_color_manual(values  = cols_combined)+
+  scale_fill_manual(values = cols_combined) +
+  theme(legend.position=c(.15,.15), legend.title = element_blank())
+
+pca_for_paper
+```
+
+```{r plot brown, include=FALSE}
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/brown/brown_final.recode.vcf",verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/brown_popmap.txt")
+
+name_vec <-indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+pca_brown <- ggplot(data = PCA_df, aes(x = Axis1, y = Axis2, color = Population)) +
+  geom_point(size = 2, alpha = 0.8) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  ggtitle('Brown') + theme_minimal() +
+  geom_text(aes(label=Sample), nudge_y = 0.1)
+
+
+
+
+pca_brown_unlabeled <- ggplot(data = PCA_df) +
+  geom_point(size = 4, alpha =0.8, 
+             aes(x = Axis1, y = Axis2, fill = Population, shape = Population))+
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  theme_minimal()  +
+  scale_fill_manual(values = cols, name = '')+
+  scale_shape_manual(values=c("NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  theme(legend.position = 'top')
+
+table(PCA_df$Population)
+  
+pca_brown_unlabeled
+```
+
+```{r structure brown, fig.height=3, fig.width=9, include=FALSE}
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/brown/brown_final/Results")
+
+data_brown <- read.csv("k2_forplotting2.csv")
+
+brown_structure_per_sample <- ggplot(data_brown, aes(x=reorder(Sample.ID, Population.Label), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+brown_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+brown_structure_per_location <-
+  ggplot(data_brown, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=2", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0,1.1)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  ) +
+  scale_fill_manual(values = cols_k2)
+
+brown_structure_per_location
+
+
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/brown/brown_final/Results")
+
+data_brown_k3 <- read.csv("k3_forplotting.csv")
+colnames(data_brown_k3)[1] <- 'Population'
+
+brown_structure_per_sample_k3 <- ggplot(data_brown_k3, aes(x=reorder(Sample.ID, Population.Label), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+brown_structure_per_sample_k3
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+brown_structure_per_location_k3 <-
+  ggplot(data_brown_k3, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0), limits = c(0,1.1)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  ) +
+  scale_fill_manual(values = cols_k3)
+
+brown_structure_per_location_k3
+```
+
+```{r plot BCQ - Brown, fig.height=3, fig.width=9, include=FALSE}
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results")
+
+data <- read.csv("k3_forplotting.csv")
+BCQ_brown <- data[data$Species == 'Brown',]
+BCQ_brown <- BCQ_brown[BCQ_brown$Sample.ID != 'BRD20070',]
+BCQ_brown_structure_per_sample <- ggplot(BCQ_brown, aes(x=reorder(Sample.ID, Long), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+BCQ_brown_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+BCQ_brown_structure_per_location <-
+  ggplot(BCQ_brown, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'top'
+  ) +
+  scale_fill_gdocs(guide = 'none')+
+  scale_color_manual(values  = cols_combined)+
+  scale_fill_manual(values = cols_combined)+
+  labs(fill = 'Species')
+
+BCQ_brown_structure_per_location
+
+```
+
+```{r brown fst, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/brown/brown_final.recode.vcf', verbose = F)
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+
+# Create a vector of population names by inputting a file
+namevec <- read.delim('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/brown_popmap.txt')
+pop_vec <- namevec$Population
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+brown_Fst <- genet.dist(my_genind, diploid = TRUE, method = "WC84") %>% round(digits = 3)
+brown_Fst
+
+
+# Desired order of labels
+lab_order = c("NPS","SPS","WC")
+
+# Change order of rows and cols
+fst.mat = as.matrix(brown_Fst)
+fst.mat1 = fst.mat[lab_order, ]
+fst.mat2 = fst.mat1[, lab_order]
+
+# Create a data.frame
+ind = which(upper.tri(fst.mat2), arr.ind = TRUE)
+fst.df = data.frame(Site1 = dimnames(fst.mat2)[[2]][ind[,2]],
+                    Site2 = dimnames(fst.mat2)[[1]][ind[,1]],
+                    Fst = fst.mat2[ ind ])
+
+# Keep the order of the levels in the data.frame for plotting 
+fst.df$Site1 = factor(fst.df$Site1, levels = unique(fst.df$Site1))
+fst.df$Site2 = factor(fst.df$Site2, levels = unique(fst.df$Site2))
+
+# Convert minus values to zero
+fst.df$Fst[fst.df$Fst < 0] = 0
+
+# Fst italic label
+fst.label = expression(italic("F")[ST])
+
+# Extract middle Fst value for gradient argument
+mid = max(fst.df$Fst) / 2
+
+# Plot heatmap
+plot1brown <- ggplot(data = fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(aes(label = Fst), color="black", size = 5)+
+  scale_fill_gradient2(low = "blue", mid = "pink", high = "red", midpoint = 0.09, name = fst.label, limits = c(0, max(fst.df$Fst)), breaks = c(0, 0.05, 0.10, 0.15))+
+  scale_x_discrete(expand = c(0,0))+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  ggtitle("Brown")+
+  theme(axis.text = element_text(colour = "black", size = 10, face = "bold"),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+  )
+
+output_brown <- boot.ppfst(dat= my_genind, nboot = 1000)
+
+```
+
+```{r structure copper, include=FALSE}
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copper/copper_final/Results")
+
+data_copper <- read.csv("k3_forplotting.csv")
+copper_structure_per_sample <- ggplot(data_copper, aes(x=reorder(Sample.ID, PopulationNumber), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+#copper_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+copper_structure_per_location <-
+  ggplot(data_copper, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  ) +
+  scale_fill_gdocs(guide = 'none')+
+  scale_fill_manual(values = cols_k3)
+
+copper_structure_per_location
+```
+
+```{r plot copper, include=FALSE}
+
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copper/copper_final.recode.vcf", verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/copper_popmap.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+pca_copper <- ggplot(data = PCA_df, aes(x = Axis1, y = Axis2, color = Population)) +
+  geom_point(size = 2, alpha = 0.6) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  ggtitle('Copper') + theme_minimal() +
+  geom_text(aes(label=Sample), nudge_y = 0.1)
+  
+#ggplotly(pca_copper)
+
+pca_copper_unlabeled <- ggplot(data = PCA_df) +
+  geom_point(size = 3, alpha =0.8,
+             aes(x = Axis1, y = Axis2, fill = Population, shape = Population)) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  theme_minimal()  +
+  scale_color_manual(values  = cols,name = '')+
+  scale_fill_manual(values = cols, name = '')+
+  scale_shape_manual(values=c("BC" = 23, "NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  theme(legend.position = 'top')
+  
+pca_copper_unlabeled
+
+
+
+pca_copper_34 <- ggplot(data = PCA_df) +
+  geom_point(size = 3, alpha =0.8,
+             aes(x = Axis3, y = Axis4, fill = Population, shape = Population)) +
+  xlab(paste("Axis 3 (", round(pca_info$variance.percent[[3]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 4 (", round(pca_info$variance.percent[[4]], 3), "%)", sep = "")) +
+  theme_minimal()  +
+  scale_color_manual(values  = cols,name = '')+
+  scale_fill_manual(values = cols, name = '')+
+  scale_shape_manual(values=c("BC" = 23, "NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  theme(legend.position = 'top')
+
+
+```
+
+```{r plot BCQ - Copper, fig.height=3, fig.width=9, include=FALSE}
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results")
+
+data <- read.csv("k3_forplotting.csv")
+BCQ_copper <- data[data$Species == 'Copper',]
+BCQ_copper_structure_per_sample <- ggplot(BCQ_copper, aes(x=reorder(Sample.ID, Long), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+BCQ_copper_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+BCQ_copper_structure_per_location <-
+  ggplot(BCQ_copper, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'top'
+  ) +
+  scale_fill_gdocs(guide = 'none')+
+  scale_color_manual(values  = cols_combined)+
+  scale_fill_manual(values = cols_combined)+
+  labs(fill = 'Species')
+
+BCQ_copper_structure_per_location
+```
+
+```{r copper fst, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+######################################################################################
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copper/copper_final.recode.vcf')
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+
+# Create a vector of population names by inputting a file
+namevec <- read.delim('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/copper_popmap.txt')
+pop_vec <- namevec$Population
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+ copper_Fst <- genet.dist(my_genind, diploid = TRUE, method = "WC84") %>% round(digits = 3)
+ copper_Fst
+
+
+# Desired order of labels
+lab_order = c("NPS","SPS","WC", "BC")
+
+# Change order of rows and cols
+fst.mat = as.matrix( copper_Fst)
+fst.mat1 = fst.mat[lab_order, ]
+fst.mat2 = fst.mat1[, lab_order]
+
+# Create a data.frame
+ind = which(upper.tri(fst.mat2), arr.ind = TRUE)
+fst.df = data.frame(Site1 = dimnames(fst.mat2)[[2]][ind[,2]],
+                    Site2 = dimnames(fst.mat2)[[1]][ind[,1]],
+                    Fst = fst.mat2[ ind ])
+
+# Keep the order of the levels in the data.frame for plotting 
+fst.df$Site1 = factor(fst.df$Site1, levels = unique(fst.df$Site1))
+fst.df$Site2 = factor(fst.df$Site2, levels = unique(fst.df$Site2))
+
+# Convert minus values to zero
+fst.df$Fst[fst.df$Fst < 0] = 0
+
+# Fst italic label
+fst.label = expression(italic("F")[ST])
+
+# Extract middle Fst value for gradient argument
+mid = max(fst.df$Fst) / 2
+
+# Plot heatmap
+plot1copper <- ggplot(data = fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(aes(label = Fst), color="black", size = 5)+
+  scale_fill_gradient2(low = "blue", mid = "pink", high = "red", midpoint = 0.09, name = fst.label, limits = c(0, max(fst.df$Fst)), breaks = c(0, 0.05, 0.10, 0.15))+
+  scale_x_discrete(expand = c(0,0))+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  ggtitle('Copper')+
+  theme(axis.text = element_text(colour = "black", size = 10, face = "bold"),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+  )
+output_copper <- boot.ppfst(dat= my_genind, nboot = 1000)
+```
+
+```{r structure quillback, include=FALSE}
+#Set WD and load data
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/quillback/quillback_final/")
+data_quillback <- read.csv("k2_forplotting.csv")
+data_quillback <- data_quillback[data_quillback$Sample.ID != 'QB20067',]
+
+##Plot each individual along a structure plot
+quillback_structure_per_sample <- ggplot(data_quillback, aes(x=reorder(Sample.ID, PopulationNumber),y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1))+
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+quillback_structure_per_sample
+
+##Plot by location to see geographic trends
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+quillback_structure_per_location <-
+  ggplot(data_quillback, aes(x=reorder(Sample.ID, Long), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=2", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'none'
+  ) +
+  scale_fill_gdocs(guide = 'none')+
+  scale_fill_manual(values = cols_k2)
+
+quillback_structure_per_location
+```
+
+```{r plot quillback, include=FALSE}
+
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/quillback/quillback_final.recode.vcf")
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/quillback_popmap.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+pca_quillback <- ggplot(data = PCA_df, aes(x = Axis1, y = Axis2, color = Population)) +
+  geom_point(size = 2.5, alpha = 0.6) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  ggtitle('Quillback') + theme_minimal() +
+  geom_text(aes(label=Sample), nudge_y = 0.1)
+  
+#ggplotly(pca_quillback)
+
+pca_quillback_unlabeled <- ggplot(data = PCA_df) +
+  geom_point(size = 3, alpha = 0.8, 
+             aes(x = Axis1, y = Axis2, fill = Population, shape = Population)) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +
+  theme_minimal()  +
+  scale_color_manual(values  = cols, name = '')+
+  scale_fill_manual(values = cols,name = '')+
+  scale_shape_manual(values=c("BC" = 23, "NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  theme(legend.position = 'top')
+  
+pca_quillback_unlabeled
+```
+
+```{r plot BCQ - Quillback, fig.height=3, fig.width=9, include=FALSE}
+setwd("C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results")
+
+data <- read.csv("k3_forplotting.csv")
+BCQ_quillback <- data[data$Species == 'Quillback',]
+BCQ_quillback <- BCQ_quillback[BCQ_quillback$Sample.ID != 'QBD20009',]
+BCQ_quillback <- BCQ_quillback[BCQ_quillback$Sample.ID != 'QBD20008',]
+BCQ_quillback_structure_per_sample <- ggplot(BCQ_quillback, aes(x=reorder(Sample.ID, Long), y=Percent, fill=factor(Label), width = 1)) + 
+  scale_y_continuous(expand = c(0,0), limits = c(0,1.01)) +
+  geom_bar(stat="identity",position="stack")+
+  theme_classic()+
+  theme(axis.text.x = element_text(size=5, angle = 90, hjust = 1,colour="black"),
+        legend.position = 'none')+
+  scale_fill_brewer(palette="Paired") + xlab('Sample')
+
+BCQ_quillback_structure_per_sample
+
+#### Borrowed from https://luisdva.github.io/rstats/model-cluster-plots/
+BCQ_quillback_structure_per_location <-
+  ggplot(BCQ_quillback, aes(x=factor(reorder(Sample.ID, Long)), y=Percent, fill = factor(Label))) +
+  geom_col(color = "gray", size = 0.1) +
+  facet_grid(~fct_inorder(Population), switch = "x", scales = "free", space = "free") +
+  theme_minimal() + labs(x = "Individuals", title = "K=3", y = "Ancestry") +
+  scale_y_continuous(expand = c(0, 0)) +
+  scale_x_discrete(expand = expand_scale(add = 1)) +
+  theme(
+    panel.spacing.x = unit(0.1, "lines"),
+    axis.text.x = element_blank(),
+    panel.grid = element_blank(),
+    legend.position = 'top'
+  ) +
+  scale_color_manual(values  = cols_combined)+
+  scale_fill_manual(values = cols_combined)+
+  labs(fill = 'Species')
+
+BCQ_quillback_structure_per_location
+```
+
+```{r quillback fst, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+######################################################################################
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/quillback/quillback_final.recode.vcf')
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+
+# Create a vector of population names by inputting a file
+namevec <- read.delim('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/quillback_popmap.txt')
+pop_vec <- namevec$Population
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+ quillback_Fst <- genet.dist(my_genind, diploid = TRUE, method = "WC84") %>% round(digits = 3)
+ quillback_Fst
+
+
+# Desired order of labels
+lab_order = c("NPS","SPS","WC", "BC")
+
+# Change order of rows and cols
+fst.mat = as.matrix( quillback_Fst)
+fst.mat1 = fst.mat[lab_order, ]
+fst.mat2 = fst.mat1[, lab_order]
+
+# Create a data.frame
+ind = which(upper.tri(fst.mat2), arr.ind = TRUE)
+fst.df = data.frame(Site1 = dimnames(fst.mat2)[[2]][ind[,2]],
+                    Site2 = dimnames(fst.mat2)[[1]][ind[,1]],
+                    Fst = fst.mat2[ ind ])
+
+# Keep the order of the levels in the data.frame for plotting 
+fst.df$Site1 = factor(fst.df$Site1, levels = unique(fst.df$Site1))
+fst.df$Site2 = factor(fst.df$Site2, levels = unique(fst.df$Site2))
+
+# Convert minus values to zero
+fst.df$Fst[fst.df$Fst < 0] = 0
+
+# Print data.frame summary
+fst.df %>% str
+
+
+# Fst italic label
+fst.label = expression(italic("F")[ST])
+
+# Extract middle Fst value for gradient argument
+mid = max(fst.df$Fst) / 2
+
+# Plot heatmap
+plot1quillback <- ggplot(data = fst.df, aes(x = Site1, y = Site2, fill = Fst))+
+  geom_tile(colour = "black")+
+  geom_text(aes(label = Fst), color="black", size = 5)+
+  scale_fill_gradient2(low = "blue", mid = "pink", high = "red", midpoint = 0.09, name = fst.label, limits = c(0, max(fst.df$Fst)), breaks = c(0, 0.05, 0.10, 0.15))+
+  scale_x_discrete(expand = c(0,0))+
+  scale_y_discrete(expand = c(0,0), position = "right")+
+  ggtitle('Quillback')+
+  theme(axis.text = element_text(colour = "black", size = 10, face = "bold"),
+        axis.title = element_blank(),
+        panel.grid = element_blank(),
+        panel.background = element_blank(),
+        legend.position = "right",
+        legend.title = element_text(size = 14, face = "bold"),
+        legend.text = element_text(size = 10)
+  )
+output_quillback <- boot.ppfst(dat= my_genind, nboot = 1000)
+```
+
+```{r BCQ fst, eval=FALSE, message=FALSE, warning=FALSE, include=FALSE}
+######################################################################################
+# Read in the data (with vcfR) and save it as a df 
+my_vcf <-  read.vcfR('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final.recode.vcf')
+
+# Transform the data into a genind object, that hierfstat can use to estimate FIS
+my_genind <- vcfR2genind(my_vcf)
+
+######################################################################################
+# Do some data processing, in preparation for the analyses
+# Save a vector of unique locus names
+my_loci <- unique(my_genind$loc.fac)
+length(my_loci) #check the number of loci
+
+# Create a vector of individual names
+name_vec <- indNames(my_genind)
+head(name_vec)
+
+QB_count <- sum(str_count(name_vec, 'QB'))
+CO_count <- sum(str_count(name_vec, 'CO'))
+BR_count <- sum(str_count(name_vec, 'BR'))
+
+pop_vec <- c(rep('QB', times = QB_count), rep('CO', times = CO_count),
+             rep('BR', times = BR_count))
+
+
+# Create a vector of population names by inputting a file
+
+
+
+
+
+
+# Assign those population names to your genind object
+pop(my_genind) <- pop_vec
+
+
+
+
+ BCQ_Fst <- genet.dist(my_genind, diploid = TRUE, method = "WC84") %>% round(digits = 3)
+ BCQ_Fst
+
+
+
+```
+
+```{r PLOTTING, include=FALSE}
+
+layout <- "
+AA
+BB
+"
+
+layout2 <- "
+AA
+BB
+CC"
+
+copper_structure_per_location/BCQ_copper_structure_per_location + plot_layout(design=layout)+ plot_annotation(title = 'Copper')
+#pca_copper_unlabeled
+#plot1copper 
+#output_copper
+
+brown_structure_per_location/BCQ_brown_structure_per_location + plot_layout(design=layout)+ plot_annotation(title= 'Brown')
+#pca_brown_unlabeled
+#plot1brown
+#output_brown
+
+quillback_structure_per_location/BCQ_quillback_structure_per_location + plot_layout(design=layout) + plot_annotation(title = 'Quillback')
+#pca_quillback_unlabeled
+#plot1quillback
+#output_quillback
+
+```
+
+
+```{r maps, warning=FALSE, include=FALSE}
+## Build a blank map for Washington/PS
+setwd('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/scripts/Misc Scripts')
+world <- ne_countries(scale = 10, returnclass = "sf")
+labels <- read_csv('maplabels.csv')
+
+barriers <- data.frame(id = 1:3,
+                       lat_1 = c(48.225353, 48.30888201726048, 49.002066),
+                       lon_1 = c(-122.766328, -123.56424164803133, -122.758979),
+                       lat_2 = c(48.132969, 48.150221501649284, 49.002066),
+                       lon_2 = c(-122.837687, -123.5539663929622, -123.816018))
+
+map <- ggplot(data = world) +
+  geom_sf() +
+  coord_sf(ylim = c(50.410973, 46.025), xlim = c(-126, -122.180), expand = FALSE)+ 
+  theme(panel.background = element_rect(fill=NA, color="gray90"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_blank(),
+        axis.text.y=element_blank(),
+        axis.ticks.y=element_blank(),
+        axis.title.y=element_blank()) +
+  scale_x_continuous(breaks = seq(from = -126, to = -122, by = 1)) +
+  scale_y_continuous(breaks = seq(from = 47, to = 50, by = 1))
+
+
+map
+
+#Build one map with labels for multiplot
+map2 <- ggplot(data = world) +
+  geom_sf() +
+  coord_sf(ylim = c(50.410973, 47.025), xlim = c(-126, -122.180), expand = FALSE)+ 
+  theme(panel.background = element_rect(fill=NA, color="gray90"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  scale_x_continuous(breaks = seq(from = -126, to = -122, by = 1)) +
+  scale_y_continuous(breaks = seq(from = 47, to = 50, by = 1))
+
+#Build a map of US west coast for brown samples
+#states <- st_as_sf(map("state", plot = FALSE, fill = TRUE))
+#states <- cbind(states, st_coordinates(st_centroid(states)))
+browncoastmap <- ggplot(data = world) +
+  geom_sf() +
+  #geom_sf(data = states, fill = NA) + 
+  coord_sf(ylim = c(49.5, 31), xlim = c(-125.6, -113.12), expand = FALSE)+ 
+  theme(panel.background = element_rect(fill=NA, color="gray90"),
+        panel.grid.major = element_blank(),
+        panel.grid.minor = element_blank(),
+        axis.title.x = element_blank(),
+        axis.title.y = element_blank()) +
+  scale_x_continuous(breaks = seq(from = -125, to = -115, by = 5)) +
+  scale_y_continuous(breaks = seq(from = 30, to = 50, by = 5))
+```
+
+```{r quillback pie, include=FALSE}
+#Quillback
+setwd('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/scripts/Misc Scripts')
+quillback <- read_csv('test1.csv', show_col_types = FALSE)
+quillback <- quillback[1:14,1:6]
+categories <- c("1", "2")
+pal_ks <- wes_palette("Cavalcanti1", n = 3)
+cols_k2 <- c('2' = pal_ks[2], '1' = pal_ks[1])
+cols_k3 <- c('CG1' = pal_ks[2], 'CG3' = pal_ks[1], 'CG2' = pal_ks[3])
+
+pie_quillback <- map2 + geom_scatterpie(data = quillback, 
+                                aes(x=`long`, y=`lat`, r = `radius`),
+                                color = NA,
+                                legend_name = 'type', 
+                                cols = categories,
+                                alpha = 0.9)+
+  theme(legend.position = 'none')+
+  scale_fill_manual(values = cols_k2)+
+  geom_scatterpie_legend((quillback$radius), x = -125.52, y= 47.41, n = 3, 
+                         labeller = function(x) x*40)
+
+```
+
+```{r brown pie, include=FALSE}
+#Brown
+setwd('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/scripts/Misc Scripts')
+brown <- read_csv('brown_map_pie_k2.csv', show_col_types = FALSE)
+categories <- c("1", "2")
+brown_sound <- brown[1:10,]
+brown_coast <- brown[10:11,]
+
+my_cols_coast <- '#ff9900'
+
+plot_brown <- map2 + geom_scatterpie(data = brown_sound, 
+                                     aes(x=`long`, y=`lat`, r = `radius`),
+                                     color = NA,
+                                     legend_name = 'type', 
+                                     cols = categories,
+                                     alpha = 0.9)+
+  theme(legend.position = 'none')+
+  scale_fill_manual(values = cols_k2)+
+  geom_scatterpie_legend((brown_sound$radius), x = -125.52, y= 47.41, n =3,
+                         labeller = function(x) x*30)
+
+
+plot_brown_coast <- browncoastmap + geom_scatterpie(data = brown_coast, 
+                                     aes(x=`long`, y=`lat`, r = `radius`),
+                                     color = NA,
+                                     legend_name = 'type', 
+                                     cols = categories,
+                                     alpha = 0.8)+
+  theme(legend.position = 'none')+
+  scale_fill_manual(values = cols_k2) +
+  geom_scatterpie_legend((brown_coast$radius), x = -124.3, y= 33.2, n =3,
+                         labeller = function(x) x*4)
+
+pie_brown <- plot_brown + plot_brown_coast + plot_annotation(tag_levels = 'A')
+
+pie_brown
+
+```
+
+```{r copper pie, include=FALSE}
+#Copper
+setwd('C:/Users/Anita\ Wray/Desktop/AwrayRockfish/scripts/Misc Scripts')
+copper <- read_csv('copper_map_pie.csv', show_col_types = FALSE)
+categories_k3 <- c("CG1", "CG2", "CG3")
+#cols_k3 <- c('CG1'='#3366cc', 'CG2'='#dc3912', 'CG3'='#ff9900')
+
+pie_copper <- map2 + geom_scatterpie(data = copper, 
+                                     aes(x=`long`, y=`lat`, 
+                                          r = radius),
+                                     color = NA,
+                                     legend_name = 'type', 
+                                     cols = categories_k3,
+                                     alpha = 0.9)+
+  theme(legend.position = 'none')+
+  scale_fill_manual(values = cols_k3)+
+  geom_scatterpie_legend((copper$radius), x = -125.52, y= 47.5, n =3,
+                         labeller = function(x) x*50)
+
+pie_copper
+
+```
+
+```{r plotting for paper, fig.height=5, fig.width=10, include=FALSE}
+layout_pies <- "
+AACC
+AACC
+AACC
+AACC
+BBCC
+"
+
+layout_brown <- "
+AA
+AA
+AA
+BB
+CC
+"
+
+pdf(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig4-CopperCombined.pdf",
+   width = 7,
+   height = 5)
+pca_copper_unlabeled+copper_structure_per_location + pie_copper +
+ plot_layout(design=layout_pies) + 
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig4-CopperCombined.jpeg",
+       width = 7, 
+       height = 5,
+       dpi = 300)
+pca_copper_unlabeled+copper_structure_per_location + pie_copper +
+ plot_layout(design=layout_pies) + 
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+pca_copper_unlabeled+copper_structure_per_location + pie_copper +
+ plot_layout(design=layout_pies) + 
+  plot_annotation(tag_levels = 'A')
+
+pdf(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig3-BrownCombined.pdf",
+    width = 7, 
+    height = 5)
+pca_brown_unlabeled+brown_structure_per_location+plot_brown+
+  plot_layout(design = layout_pies)+ 
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig3-BrownCombined.jpeg",
+       width = 7, 
+       height = 5,
+       dpi = 300)
+pca_brown_unlabeled+brown_structure_per_location+plot_brown+
+  plot_layout(design = layout_pies)+ 
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+pdf(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig6-QuillbackCombined.pdf",
+    width = 7, 
+    height = 5)
+pca_quillback_unlabeled+quillback_structure_per_location+pie_quillback +
+  plot_layout(design = layout_pies) +
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig6-QuillbackCombined.jpeg",
+    width = 7, 
+    height = 5,
+    dpi = 300)
+pca_quillback_unlabeled+quillback_structure_per_location+pie_quillback +
+  plot_layout(design = layout_pies) +
+  plot_annotation(tag_levels = 'A')
+dev.off()
+
+layout2 <- "AAA
+BBB
+CCC"
+
+
+combined_brown <- BCQ_brown_structure_per_location + 
+ theme(axis.title.x = element_blank(), legend.position = 'none') + labs(title = 'A: Brown')
+combined_copper <- BCQ_copper_structure_per_location + 
+ theme(legend.position = 'none', axis.title.x = element_blank()) + labs(title = 'B: Copper')
+combined_quillback <- BCQ_quillback_structure_per_location + 
+ theme(legend.position = 'none') + labs(title = 'C: Quillback')
+
+p1 <- (combined_brown/combined_copper/combined_quillback | (pca_for_paper+labs(title = 'D'))) + 
+ plot_layout(widths = c(5,4))
+
+p1 
+
+pdf(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig2-HybridPCAStructure.pdf",
+    width = 7,
+    height = 4)
+p1 
+dev.off()
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig2-HybridPCAStructure.jpeg",
+       width = 7,
+       height = 4,
+       dpi = 300)
+p1
+dev.off()
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Figure_For_Response_Letter.jpeg",
+       width = 5,
+       height= 7,
+       dpi = 300)
+(pca_copper_unlabeled/pca_copper_34)
+dev.off()
+
+
+
+#copper_comparison_B <- copper_structure_per_location + theme(plot.title = element_blank())
+
+#combined_copper/copper_comparison_B + 
+ # plot_annotation(tag_levels = 'A')
+
+```
+
+```{r plot copper percent qb, include=FALSE}
+
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copper/copper_final.recode.vcf", verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/copper_popmap.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+# add in collection and species data for samples
+intro <- read.csv(file = "C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results/k3_forplotting.csv") %>%
+  subset(Species == 'Copper' & Label == 'Quillback') %>%
+  select(-c('Lat', 'Long', 'Species', 'Label', 'Population'))
+
+PCA_df <- merge(PCA_df, intro, 
+               by.x = 'Sample', by.y = 'Sample.ID')
+pal <- c(colorRampPalette(c("#95cbee", "#0099dc",
+                             "#0D98BA","#4ab04a","#C0FF02", "#e8e377"))(12),
+          colorRampPalette(c("#ffd73e", "#e29421", "#e29421", "#f05336", "#ce472e", "#8B0000"))(30))
+
+
+copper <- ggplot(PCA_df, aes(x = Axis1, y = Axis2)) + 
+  geom_point(aes(shape=Population, fill=Percent), size = 3) +
+    scale_shape_manual(values=c("BC" = 23, "NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +  
+  theme_minimal(base_size = 10) +
+  scale_fill_gradientn(colors = pal, limits = c(0,0.5))+
+  labs(fill=
+  'Proportion
+Quillback 
+Ancestry')
+
+copper
+
+p2 <- ggplot(PCA_df, aes(x = Axis3, y = Axis2)) + 
+  geom_point(aes(shape=Population, col=Percent), size = 3) +
+  xlab(paste("Axis 3 (", round(pca_info$variance.percent[[3]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +  
+  theme_minimal(base_size = 10) +
+  scale_color_gradientn(colors = pal, limits = c(0,0.5)) +
+  theme_bw() +
+  ggtitle('All Populations - Copper')
+
+
+p1b <- ggplot(PCA_df, aes(x = Axis1, y = Percent))+
+  geom_point(aes(shape = Population))+
+  ylab('')+
+  scale_shape_manual(values=c(18, 15, 16, 17))+
+  xlab('Copper Intraspecific PC1')+
+  stat_poly_line() +
+  stat_poly_eq(use_label(c("R2", 'p')))+
+  scale_y_continuous(expand = c(0,0), limits = c(0,0.5))
+
+setwd("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/scripts/Misc Scripts")
+
+my_data <- read.csv("inter_intra_copper_structure.csv")
+intro <- read.csv(file = "C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results/k3_forplotting.csv") %>%
+  subset(Species == 'Copper' & Label == 'Quillback') %>%
+  select(-c('Lat', 'Long', 'Species', 'Label'))
+my_data <- merge(my_data, intro)
+
+
+
+p1c <- ggplot(data = my_data, aes(x=Blue, y = Percent)) +
+  geom_point(aes(shape = Population)) +
+  scale_shape_manual(values=c(18, 15, 16, 17))+
+  stat_poly_line(formula = y ~ log(x))+
+  stat_poly_eq(use_label(c("R2", 'p')))+
+  xlab("Proportion Copper BC Cluster") +
+  ylab("") +
+  scale_x_continuous(expand = c(0,0), limits = c(0,1.05)) +
+  scale_y_continuous(expand = c(0,0), limits = c(0, 0.5))
+
+
+
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/brown/brown_final.recode.vcf", verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/Post-initial/brown_popmap.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+# add in collection and species data for samples
+intro <- read.csv(file = "C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results/k3_forplotting.csv") %>%
+  subset(Species == 'Brown' & Label == 'Quillback') %>%
+  select(-c('Lat', 'Long', 'Species', 'Label', 'Population'))
+
+PCA_df <- merge(PCA_df, intro, 
+               by.x = 'Sample', by.y = 'Sample.ID')
+
+
+brown <- ggplot(PCA_df, aes(x = Axis1, y = Axis2)) + 
+  geom_point(aes(shape=Population, fill=Percent), size = 3) +
+  scale_shape_manual(values=c("NPS" = 22, "SPS" = 21, "WC" = 24), name = '')+
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +  
+  theme_minimal(base_size = 10) +
+  scale_fill_gradientn(colors = pal, limits = c(0,0.5))+
+  theme(legend.position = 'none')
+  labs(color='Proportion Quillback Ancestry')
+
+p1a <- ggplot(PCA_df, aes(x = Axis1, y = Percent))+
+  geom_point(aes(shape = Population))+
+  scale_shape_manual(values=c(15, 16, 17))+
+  ylab('Proportion Admixed Ancestry')+
+  xlab('Brown Intraspecific PC1')+
+  stat_poly_line() +
+  stat_poly_eq(use_label(c("R2", 'p')))+
+  scale_y_continuous(limits = c(0,0.08))
+
+p4 <- (brown + copper) + plot_annotation(tag_levels = "A")
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/Fig7-CopperBrownPCAColored.jpeg",
+       width = 9,
+       height = 4,
+       dpi = 300)
+p4
+dev.off()
+
+
+p1 <- (p1a+p1b+p1c) + plot_annotation(tag_levels = 'A')&
+  scale_shape_discrete(name =  c())
+
+(p1a + theme(legend.position = "none")) + 
+  (p1b + theme(legend.position = 'none'))+
+  (p1c + theme(legend.position = "right")) +
+  plot_annotation(tag_levels = "A") +
+  plot_layout(guides = "auto")
+
+ggsave(file = "C:/Users/Anita Wray/Desktop/Figures for Hybrid Manuscript/SupFig-CopperBrownRegressions.jpeg",
+       width = 8,
+       height = 3,
+       dpi = 300)
+p1
+dev.off()
+
+```
+
+
+
+```{r plot copper percent qb nps sps, eval=FALSE, include=FALSE}
+# File to be used
+my_vcf <-  read.vcfR("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/populations/refmap/copper_NPS_SPS/copper_NPS_SPS_final.recode.vcf",
+                     verbose = F)
+my_genind <- vcfR2genind(my_vcf)
+
+#Complementary Data
+extra_data <- read.delim("C:/Users/Anita\ Wray/Desktop/AwrayRockfish/Rpopassignments/copper_NPS_SPS.txt")
+
+name_vec <- indNames(my_genind)
+pop_vec <- extra_data$Population
+pop(my_genind) <- pop_vec
+Adata_scaled <- scaleGen(my_genind, NA.method = "mean")
+pca_A <- dudi.pca(Adata_scaled,cent = TRUE,scale = FALSE,scannf = FALSE, nf = 20)
+PCA_df <- pca_A$li
+PCA_df$Sample <- name_vec
+pca_info <- get_eigenvalue(pca_A)
+PCA_df <- merge(PCA_df, extra_data, by = "Sample")
+
+
+# add in collection and species data for samples
+intro <- read.csv(file = "C:/Users/Anita Wray/Desktop/AwrayRockfish/populations/refmap/copperquillbackbrown/BCQ_final/BCQ_final/Results/k3_forplotting.csv") %>%
+  subset(Species == 'Copper' & Label == 'Quillback') %>%
+  select(-c('Lat', 'Long', 'Species', 'Label', 'Population'))
+
+PCA_df <- merge(PCA_df, intro, 
+               by.x = 'Sample', by.y = 'Sample.ID')
+
+cols <- c("NPS" = '#f2d7ee', "SPS" = '#a5668b')
+
+ggplot(PCA_df, aes(Axis1, Axis2)) + 
+  geom_point(aes(shape=Population, col=Percent), size = 3) +
+  xlab(paste("Axis 1 (", round(pca_info$variance.percent[[1]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +  
+  theme_grey(base_size = 10) +
+  scale_color_gradientn(colors = pal) +
+  theme_bw() +
+  ggtitle('NPS/SPS - Copper')
+
+ggplot(PCA_df, aes(Axis3, Axis2)) + 
+  geom_point(aes(shape=Population, col=Percent), size = 3) +
+  xlab(paste("Axis 3 (", round(pca_info$variance.percent[[3]], 3), "%)", sep = "")) +
+  ylab(paste("Axis 2 (", round(pca_info$variance.percent[[2]], 3), "%)", sep = "")) +  
+  theme_grey(base_size = 10) +
+  scale_color_gradientn(colors = pal) +
+  theme_bw() +
+  ggtitle('NPS/SPS - Copper')
+
+
+```
+
